@@ -94,12 +94,7 @@ class Column:
       return 'string'
   
     # Normalize the data_type value, downcasing it, and removing extra information. 
-    # ex. STRING => string
-    source_data_type = self._column_dict['data_type'].lower()
-    # ex. timestamp(3) => timestamp
-    source_data_type = re.sub(r'\(\d+\)', '', source_data_type)
-    # ex. number(38, 0) => number
-    source_data_type = re.sub(r'\(\d+,\s*\d+\)', '', source_data_type)
+    source_data_type = re.sub(r'\([^\)]*\)', '', self._column_dict['data_type'].lower())
 
     if source_data_type in TYPE_MAPPINGS:
       cube_data_type = TYPE_MAPPINGS[source_data_type]
