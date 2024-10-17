@@ -1,4 +1,71 @@
+import re
 from cube_dbt.dump import dump
+
+# As of 2024-10-17, the valid "Dimension Types" listed on
+# https://cube.dev/docs/reference/data-model/types-and-formats#dimension-types
+# are: time, string, number, boolean, and geo
+VALID_DIMENSION_TYPES = [
+  'boolean',
+  'geo',
+  'number',
+  'string',
+  'time',
+]
+# Other System's Type => Cube Type
+TYPE_MAPPINGS = {
+  # Unknown
+  'bool': 'boolean',
+
+  # Snowflake (numeric)
+  # 'number': 'number',
+  'decimal': 'number',
+  'numeric': 'number',
+  'int': 'number',
+  'integer': 'number',
+  'bigint': 'number',
+  'smallint': 'number',
+  'tinyint': 'number',
+  'byteint': 'number',
+  'float': 'number',
+  'float4': 'number',
+  'float8': 'number',
+  'double': 'number',
+  'double precision': 'number',
+  'real': 'number',
+
+  # Snowflake (string & binary)
+  'varchar': 'string',
+  'char': 'string',
+  'character': 'string',
+  # 'string': 'string',
+  'text': 'string',
+  'binary': 'string',
+  'varbinary': 'string',
+
+  # Snowflake (boolean)
+  # 'boolean': 'boolean',
+
+  # Snowflake (data & time)
+  'date': 'time',
+  'datetime': 'time',
+  # 'time': 'time',
+  'timestamp': 'time',
+  'timestamp_ltz': 'time',
+  'timestamp_ntz': 'time',
+  'timestamp_tz': 'time',
+
+  # Snowflake (semi-structured)
+  'variant': 'string',
+  'object': 'string',
+  'array': 'string',
+
+  # Snowflake (geospatial)
+  'geography': 'geo',
+  'geometry': 'string',
+
+  # Snowflake (vector)
+  'vector': 'string',
+}
 
 class Column:
   def __init__(self, model_name: str, column_dict: dict) -> None:
@@ -25,28 +92,24 @@ class Column:
   def type(self) -> str:
     if not 'data_type' in self._column_dict or self._column_dict['data_type'] == None:
       return 'string'
-    
-    column_to_dimension_types = {
-      'time': 'time',
-      'date': 'time',
-      'datetime': 'time',
-      'timestamp': 'time',
+  
+    # Normalize the data_type value, downcasing it, and removing extra information. 
+    # ex. STRING => string
+    source_data_type = self._column_dict['data_type'].lower()
+    # ex. timestamp(3) => timestamp
+    source_data_type = re.sub(r'\(\d+\)', '', source_data_type)
+    # ex. number(38, 0) => number
+    source_data_type = re.sub(r'\(\d+,\s*\d+\)', '', source_data_type)
 
-      'string': 'string',
+    if source_data_type in TYPE_MAPPINGS:
+      cube_data_type = TYPE_MAPPINGS[source_data_type]
+    else:
+      cube_data_type = source_data_type
 
-      'number': 'number',
-      'numeric': 'number',
-
-      'boolean': 'boolean',
-      'bool': 'boolean',
-
-      'geo': 'geo',
-      'geography': 'geo',
-    }
-    if not self._column_dict['data_type'] in column_to_dimension_types:
+    if cube_data_type not in VALID_DIMENSION_TYPES:
       raise RuntimeError(f"Unknown column type of {self._model_name}.{self.name}: {self._column_dict['data_type']}")
 
-    return column_to_dimension_types[self._column_dict['data_type']]
+    return cube_data_type
   
   @property
   def meta(self) -> dict:
